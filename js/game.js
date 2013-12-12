@@ -48,6 +48,16 @@ var game = {
         levels.init();
         loader.init();
         mouse.init();
+
+	// Load all Sounds and or background music, related files
+	game.backgroundMusic = loader.loadSound('audio/backgroundMusic');
+	game.slingshotReleasedSound = loader.loadSound("audio/released");
+	game.bounceSound = loader.loadSound('audio/bounce');
+	game.breakSound = {
+	    "glass":loader.loadSound('audio/glassbreak'),
+	    "wood":loader.loadSound('audio/woodbreak')
+	};
+
         // Hide all game layers and display the start screen
         $('.gamelayer').hide();
         $('#gamestartscreen').show();
@@ -62,13 +72,16 @@ var game = {
     // Game mode
     mode: "intro",
     // X & Y Coordinates of the slingshot
-    slingshotX: 140,
+    slingshotX: 110,
     slingshotY: 280,
     start: function () {
         $('.gamelayer').hide();
         // Display the game canvas and score
         $('#gamecanvas').show();
         $('#scorescreen').show();
+
+	game.startBackgroundMusic(); // plays background music as soon as the game starts
+
         game.mode = "intro";
         game.offsetLeft = 0;
         game.ended = false;
@@ -147,6 +160,7 @@ var game = {
                 });
             } else {
                 game.mode = "fired";
+                game.slingshotReleasedSound.play();
                 var impulseScaleFactor = 0.75;
                 var impulse = new b2Vec2((game.slingshotX + 35 - mouse.x - game.offsetLeft) * impulseScaleFactor, (game.slingshotY + 25 - mouse.y) * impulseScaleFactor);
                 game.currentHero.ApplyImpulse(impulse, game.currentHero.GetWorldCenter());
@@ -259,6 +273,9 @@ var game = {
                         game.score += entity.calories;
                         $('#score').html('Score: '+game.score);
                     }
+		    if (entity.breakSound) {
+			entity.breakSound.play();
+		    }
                 } else {
                     entities.draw(entity,body.GetPosition(),body.GetAngle())
                 }
@@ -276,6 +293,7 @@ var game = {
         return (distanceSquared <= radiusSquared);
     },
     showEndingScreen:function(){
+        game.stopBackgroundMusic();
         if (game.mode=="level-success"){
             if(game.currentLevel.number<levels.data.length-1){
                 $('#endingmessage').html('Level Complete. Well Done!!!');
@@ -332,7 +350,27 @@ var game = {
         game.lastUpdateTime = undefined;
         levels.load(game.currentLevel.number+1);
     },
-
+    startBackgroundMusic:function(){
+        var toggleImage = $("#togglemusic")[0];
+        game.backgroundMusic.play();
+	toggleImage.src="img/ico/sound.png";
+    },
+    stopBackgroundMusic:function(){
+        var toggleImage = $("#togglemusic")[0];
+	toggleImage.src="img/ico/nosound.png";
+        game.backgroundMusic.pause();
+	game.backgroundMusic.currentTime = 0; // point current at start of song
+    },
+    toggleBackgroundMusic:function(){
+        var toggleImage = $("#togglemusic")[0];
+	if(game.backgroundMusic.paused){
+	    game.backgroundMusic.play();
+	    toggleImage.src="img/ico/sound.png";	    
+	} else {
+	    game.backgroundMusic.pause();
+            toggleImage.src="img/ico/nosound.png";        
+	}	
+    },
 };
 var levels = {
     // level data
@@ -600,8 +638,8 @@ var loader = {
             mp3Support = false;
             oggSupport = false;
         }
-        // Check for ogg, then mp3, and finally set soundFileExtn to undefined
-        loader.soundFileExtn = oggSupport ? ".ogg" : mp3Support ? ".mp3" :
+        // Check for mp3, then ogg, and finally set soundFileExtn to undefined
+        loader.soundFileExtn = mp3Support ? ".mp3" : oggSupport ? ".ogg" :
             undefined;
     },
     loadImage: function (url) {
@@ -613,7 +651,7 @@ var loader = {
         image.onload = loader.itemLoaded;
         return image;
     },
-    soundFileExtn: ".ogg",
+    soundFileExtn: ".mp3",
     loadSound: function (url) {
         this.totalCount++;
         this.loaded = false;
@@ -746,8 +784,8 @@ var entities = {
             entity.health = definition.fullHealth;
             entity.fullHealth = definition.fullHealth;
             entity.shape = "rectangle";
-            entity.sprite = loader.loadImage("img/entities/" + entity.name +
-                ".png");
+            entity.sprite = loader.loadImage("img/entities/" + entity.name + ".png");
+            entity.breakSound = game.breakSound[entity.name];
             box2d.createRectangle(entity, definition);
             break;
         case "ground": // simple rectangles
@@ -763,6 +801,7 @@ var entities = {
             entity.sprite = loader.loadImage("img/entities/" + entity.name +
                 ".png");
             entity.shape = definition.shape;
+            entity.bounceSound = game.bounceSound;
             if (definition.shape == "circle") {
                 entity.radius = definition.radius;
                 box2d.createCircle(entity, definition);
@@ -838,6 +877,13 @@ var box2d = {
                 if (entity2.health){
                     entity2.health -= impulseAlongNormal;
                 }
+		// if objects have a bounce sound play it
+		if (entity1.bounceSound) {
+			entity1.bounceSound.play();
+		}
+		if (entity2.bounceSound) {
+			entity2.bounceSound.play();
+		}
             }
         };
         box2d.world.SetContactListener(listener);
