@@ -10,6 +10,9 @@
 	position:absolute;
 	display:none;
 }
+.debuglayer {
+	display:none;
+}
 #gamestartscreen {
 	padding-top:150px;
 	text-align:center;
